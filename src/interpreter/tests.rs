@@ -63,8 +63,7 @@ fn parser_basic_test() -> Result<(), InterpreterError> {
 #[test]
 fn empty_input_test() -> Result<(), InterpreterError> {
     let output = interpret("")?;
-    assert_eq!(output, "");
-
+    assert!(output.is_empty());
     Ok(())
 }
 
@@ -264,6 +263,22 @@ fn subtractive_terms_test() -> Result<(), InterpreterError> {
     assert_eq!(output2, expected);
     assert_eq!(output3, expected);
     assert_eq!(output4, expected);
+
+    Ok(())
+}
+
+#[test]
+fn error_test() -> Result<(), InterpreterError> {
+    let input = "-";
+    let mut max_string = f64::MAX.to_string();
+    max_string.push('0');
+    let input1 = max_string.as_str();
+
+    let output = interpret(input)?;
+    let output1 = interpret(input1);
+
+    assert!(output.is_empty());
+    assert!(output1.is_err());
 
     Ok(())
 }

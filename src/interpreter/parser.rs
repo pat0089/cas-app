@@ -109,7 +109,7 @@ impl Parser {
         while tokens.len() > 0 {
             let term = self.parse_term(tokens)?;
             //println!("{:#?}", term);
-            terms.push(term);
+            match term { None => break, Some(t) => terms.push(t) } //terms.push(term);
         }
 
         println!("{:#?}", terms);
@@ -117,7 +117,7 @@ impl Parser {
         Ok(ASTNode::Expression(terms))
     }
 
-    fn parse_term(&self, mut tokens: &mut VecDeque<Token>) -> Result<ASTNode, InterpreterError> {
+    fn parse_term(&self, mut tokens: &mut VecDeque<Token>) -> Result<Option<ASTNode>, InterpreterError> {
         let before_constant_length = tokens.len();
         let coefficient = parse_constant(&mut tokens)?;
         let after_constant_length = tokens.len();
@@ -131,17 +131,22 @@ impl Parser {
         }
 
         let zero = Box::new(ASTNode::Number(0.0));
+        let coefficient = match coefficient {
+            Some(c) => c,
+            None => return Ok(None),
+        };
+
         //check for if this is a non-constant term that has a constant of 0, (implicit coefficient of 1)
         //  -> but how do we differentiate this from a zero constant?
-        //  Easy: length of token list to determine whether we've read in any numbers
+        //     to convert into a negative coefficient
         if variables.len() > 0 && coefficient == zero {
             if before_constant_length == after_constant_length {
-                return Ok(ASTNode::Term(Box::new(ASTNode::Number(1.0)), variables));
+                return Ok(Some(ASTNode::Term(Box::new(ASTNode::Number(1.0)), variables)));
             } else {
-                return Ok(ASTNode::Term(Box::new(ASTNode::Number(0.0)), variables));
+                return Ok(Some(ASTNode::Term(Box::new(ASTNode::Number(0.0)), variables)));
             }
         }
-        Ok(ASTNode::Term(coefficient, variables))
+        Ok(Some(ASTNode::Term(coefficient, variables)))
     }
 
     pub(crate) fn new() -> Self {
@@ -160,7 +165,10 @@ fn parse_optional_exponent(
     match tokens.front() {
         Some(Token::Symbol('^')) => {
             tokens.pop_front();
-            Ok(parse_constant(&mut tokens)?)
+            Ok(match parse_constant(&mut tokens)? {
+                None => Box::new(ASTNode::Number(1.0)),
+                Some(n) => n,
+            })
         }
         _ => Ok(Box::new(ASTNode::Number(1.0))),
     }
@@ -214,7 +222,7 @@ fn parse_optional_variables(
     Ok(Vec::new())
 }
 
-fn parse_constant(mut tokens: &mut VecDeque<Token>) -> Result<Box<ASTNode>, InterpreterError> {
+fn parse_constant(mut tokens: &mut VecDeque<Token>) -> Result<Option<Box<ASTNode>>, InterpreterError> {
     let sign = get_sign(&mut tokens);
     let mut accumulator = 0.0;
     loop {
@@ -229,9 +237,12 @@ fn parse_constant(mut tokens: &mut VecDeque<Token>) -> Result<Box<ASTNode>, Inte
             break;
         }
     }
-    return Ok(Box::new(ASTNode::Number(
+    if accumulator == 0.0 && !sign {
+        return Ok(None);
+    }
+    return Ok(Some(Box::new(ASTNode::Number(
         accumulator * if sign { 1.0 } else { -1.0 },
-    )));
+    ))));
 }
 
 fn get_sign(tokens: &mut VecDeque<Token>) -> bool {
